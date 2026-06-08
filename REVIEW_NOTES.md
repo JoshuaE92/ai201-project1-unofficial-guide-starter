@@ -110,25 +110,68 @@ Ask me to walk through any of these line-by-line when you're fresh.
 
 ---
 
-## 4. What's built vs. what's next
+## ⭐ 4. Retrieval testing — "is it finding the right reviews?"
+
+**The files:** `rag/embed_store.py` builds the vector DB; `rag/retrieve.py` searches it.
+
+**Rebuild the vector DB** (only needed if `data/chunks.json` changed):
+```bash
+python3 rag/embed_store.py
+```
+
+**Run the retrieval smoke test** (4 eval queries, prints chunks + distance scores):
+```bash
+python3 rag/retrieve.py 2>&1 | grep -vE "Batches:|it/s"
+```
+
+**What distance means:** lower = closer match (cosine). ~0.2 = strong, 0.4–0.5 =
+moderate, >0.6–0.7 = weak. Aggregate questions ("which profs give extra credit")
+naturally score moderate because the answer is spread across many reviews — that's
+normal, not a bug.
+
+**The critical test — no professor leakage** (this is Challenge #2 proof):
+```bash
+python3 -c "
+from rag.retrieve import retrieve
+r = retrieve('is the grading fair?', professor='Awrad Ali')
+print('all Awrad Ali?', all(x['professor']=='Awrad Ali' for x in r))  # must be True
+"
+```
+If this ever prints False, the metadata filter is broken — fix before anything else.
+
+**Try your own queries:**
+```bash
+python3 -c "
+from rag.retrieve import retrieve
+for x in retrieve('YOUR QUESTION HERE', k=5):
+    print(round(x['distance'],3), x['source_name']); print('  ', x['text'][:150])
+"
+```
+
+🟡 We set **k=10** (per planning.md). If answers later feel diluted, drop k; if
+they feel thin, raise it. Tune after you see real LLM answers.
+
+---
+
+## 5. What's built vs. what's next
 
 **Built (Milestone 3 — ingestion + chunking):**
-- `ingest/fetch_rmp.py` — pulls all RMP reviews via GraphQL → `documents/rmp/*.json`
-- `ingest/fetch_reddit.py` — parses hand-saved Reddit threads → `documents/reddit/*.json`
-- `ingest/build_chunks.py` — cleans + unifies everything → `data/chunks.json` (962 chunks)
+- `ingest/fetch_rmp.py` → `documents/rmp/*.json` · `ingest/fetch_reddit.py` →
+  `documents/reddit/*.json` · `ingest/build_chunks.py` → `data/chunks.json` (962 chunks)
 
-**Next (Milestone 4 — embedding + retrieval):**
-- Embed each chunk with `all-MiniLM-L6-v2`, store in ChromaDB with metadata
-- `retrieve(query, professor, k)` — filter by professor first, then vector search
-- Test the name-blind risk: query one prof, confirm no other prof's reviews come back
+**Built (Milestone 4 — embedding + retrieval):**
+- `rag/embed_store.py` — embeds all chunks with `all-MiniLM-L6-v2`, stores in
+  ChromaDB (`chroma_db/`, gitignored & rebuildable) with cosine distance + metadata
+- `rag/retrieve.py` — `retrieve(query, professor, is_cs1, k=10)`, filter-then-search
+- Verified: strong matches (best result 0.18) + zero professor leakage
 
-**After (Milestone 5 — generation + interface):**
+**Next (Milestone 5 — generation + interface):**
 - `build_prompt()` + Groq `llama-3.3-70b-versatile` call + Streamlit/CLI front end
 - Run the 5 eval questions from planning.md
 
 ---
 
-## 5. Things to double-check before submitting
+## 6. Things to double-check before submitting
 - [ ] Re-read 8–10 random chunks and confirm they're standalone (section 1b)
 - [ ] Decide the short-chunk filter (keep vs. `len >= 15`) after testing retrieval
 - [ ] Decide all-reviews vs. CS1-only after testing retrieval (section 2)
