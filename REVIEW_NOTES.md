@@ -165,9 +165,22 @@ they feel thin, raise it. Tune after you see real LLM answers.
 - `rag/retrieve.py` — `retrieve(query, professor, is_cs1, k=10)`, filter-then-search
 - Verified: strong matches (best result 0.18) + zero professor leakage
 
-**Next (Milestone 5 — generation + interface):**
-- `build_prompt()` + Groq `llama-3.3-70b-versatile` call + Streamlit/CLI front end
-- Run the 5 eval questions from planning.md
+**Built (Milestone 5 — generation + interface):**
+- `rag/generate.py` — `ask(question, professor, is_cs1, k)`: retrieve → grounded
+  prompt → Groq `llama-3.3-70b-versatile` → `{answer, sources}`. Grounding is
+  ENFORCED (system prompt forbids outside knowledge; refuses with a fixed sentence;
+  refuses without calling the LLM when retrieval is empty). Sources come from chunk
+  metadata, not the model.
+- `app.py` — Gradio UI: professor dropdown + CS1-only toggle + question box →
+  answer + "Retrieved from" sources. Run it:
+  ```bash
+  python3 app.py    # then open http://localhost:7860
+  ```
+- Verified: extra-credit + grading queries are grounded & cited; off-domain
+  questions ("parking", "dining hall") correctly decline.
+
+**Next (Milestone 6):** whatever the assignment's final step is (eval write-up /
+demo video / stretch features). Run all 5 planning.md eval questions in the UI.
 
 ---
 
