@@ -99,7 +99,7 @@ I would need to weigh if the embedding model can actualy take information from s
 | # | Question | Expected answer |
 |---|----------|-----------------|
 | 1 |  What Proffesors Provide Extra Credit| Ahmed, Ali, Rah, 
-| 2 | Between Ali and Ahmed, who's class seems harder|  Ali|
+| 2 | Between Ali and Ahmed, who's class seems harder|  Ahmed|
 | 3 |Overall who is the best professor for CS1 for teh | Guha Ahmed|
 | 4 | Is Awrad Ali's grading considered fair or harsh|  Fair|
 | 5 | In generall how are the professors difficulty for CS1|  Fair|

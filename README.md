@@ -5,6 +5,8 @@ University of Central Florida **Computer Science 1 (COP 3502)** professors. Ask 
 question, optionally focus on one professor, and get an answer grounded **only** in
 the collected reviews, with the sources it drew from.
 
+**Repository:** https://github.com/JoshuaE92/ai201-project1-unofficial-guide-starter
+
 **Run it:** `python3 app.py` → open http://localhost:7860
 
 ---
@@ -80,6 +82,45 @@ embedding focused on one coherent opinion.
 
 ---
 
+## Sample Chunks
+
+Five representative chunks, each labeled with its source document. They span both
+sources and both Reddit chunk types (a comment that names a professor, and a reply
+that inherited its professor via the tree walk and carries a parent-context line).
+
+**Chunk 1 — source: RMP — Tanvir Ahmed** (`rmp-2455124-0`, is_cs1=True)
+> Might not be the best idea to take this prof if you're not a CS major. Lectures are
+> hard to follow/sit through, very large programming assignments every 2 weeks. The
+> course feels like it is built with the assumption that the students are already
+> proficient at C and writing algorithms. Had to self-teach a lot. Lots of extra credit
+> opportunities tho
+
+**Chunk 2 — source: RMP — Awrad Ali** (`rmp-3092502-0`, is_cs1=False)
+> For an intro course, this class was very difficult. The difficulty ramps up very
+> quickly. Most of the prerecorded lectures are reused from previous years. Tests are
+> fairly challenging requiring a solid grasp on the material. Dr. Ali is helpful during
+> office hours and tries her best to help her students. Avoid taking online if possible!
+
+**Chunk 3 — source: RMP — Arup Guha** (`rmp-56125-2`, is_cs1=True)
+> I took his CS1 class as a CS minor, Mechanical Engineering major. Guha does a great job
+> at making you think hard in every problem, doesn't make anything easy, but doesn't throw
+> any major curveballs either. Use his online notes and office hours and really make an
+> effort to do the programming assignments, and he'll be the best teacher you can have.
+
+**Chunk 4 — source: Reddit — "CS1 Professor recommendations?"** (`reddit-14mqozd-jq3e495-tanvir_ahmed`)
+> Meade is a nightmare according to some students. Ahmed is very passionate about teaching
+> the material, he does have an accent but it's nothing bad. Guha can be tough but if you
+> pay attention, it can be very beneficial when it comes to taking the foundation exam
+> considering he's one of the professor who makes the exam…
+
+**Chunk 5 — source: Reddit — "CS1 Professor recommendations?"** (`reddit-14mqozd-jqbluj9`, inherited reply)
+> [In reply to: "Gerber is the best professor"]
+> Me sitting here seeing people suffer when I took CS1 with Gerber over summer before he
+> stopped teaching it. Thinking about how his extra credit, resubmissions, take home exams,
+> and individual student grade scaling… allowed me to pass the class…
+
+---
+
 ## Embedding Model
 
 **Model used:** `all-MiniLM-L6-v2` via `sentence-transformers` (384-dim). It runs locally
@@ -99,6 +140,52 @@ OpenAI embeddings) is more accurate but adds network latency and per-query cost;
 live system during fall/spring registration spikes, the local model's zero-latency,
 zero-cost profile is actually a real advantage. I'd likely keep a local model for the live
 path and reserve a larger API model for offline re-indexing experiments.
+
+---
+
+## Retrieval Test Results
+
+Three queries with their top-3 retrieved chunks and cosine distances (lower = closer).
+Reproduce with `python3 rag/retrieve.py`.
+
+**Query A — "Who is the best professor for CS1?"** (no professor filter)
+| dist | source | chunk (truncated) |
+|------|--------|-------------------|
+| 0.180 | RMP — Tanvir Ahmed | "Awesome professor for CS1!" |
+| 0.201 | RMP — Md Mahfuzur Rahaman | "Absolutely the best professor that teaches CS1… Gave us so many opportunities for extra credit…" |
+| 0.206 | RMP — Tanvir Ahmed | "Good professor overall. CS1 is a lot of work don't slack off. He gives really good lectures…" |
+
+*Why these are relevant:* every result is an explicit, positive judgment about a
+professor **for CS1 specifically**, which is exactly what the query asks. The top
+distance (0.180) is very low because "Awesome professor for CS1!" is almost a paraphrase
+of the query in meaning. Note the match is **semantic, not keyword**: the query never
+says "awesome" or "best teaches," yet those reviews rank highest because their *meaning*
+is closest. The results also correctly surface the two professors most praised in the
+corpus (Ahmed, Rahaman).
+
+**Query B — "How hard are the exams and workload?"** (professor = Tanvir Ahmed)
+| dist | source | chunk (truncated) |
+|------|--------|-------------------|
+| 0.435 | RMP — Tanvir Ahmed | "Very difficult exams and quizzes. I did very good in python… but didn't pass a single exam…" |
+| 0.438 | RMP — Tanvir Ahmed | "While the class material itself is pretty difficult, Dr. Ahmed makes it easy to understand…" |
+| 0.463 | RMP — Tanvir Ahmed | "Exams are mid-hard but there're extra credits and lots of points in other assignments…" |
+
+*Why these are relevant:* the professor filter ran first, so **all three results are
+Tanvir Ahmed** (no other professor leaks in — the core Challenge #2 guarantee). Within
+that filter, every chunk is specifically about exam/quiz/assignment difficulty and
+workload — the exact aspect queried. Distances are higher than Query A (~0.44) because the
+query is an aspect question rather than a near-paraphrase, but the content is on-target.
+
+**Query C — "Does this professor give extra credit?"** (professor = Md Mahfuzur Rahaman)
+| dist | source | chunk (truncated) |
+|------|--------|-------------------|
+| 0.499 | RMP — Md Mahfuzur Rahaman | "Overall a solid professor. He was able to explain topics well and was fair with exam material." |
+| 0.516 | RMP — Md Mahfuzur Rahaman | "Really nice professor, the material is hard but if you do the exercise pdfs…" |
+| 0.528 | RMP — Md Mahfuzur Rahaman | "I think he is a good professor… This class is just brutally difficult…" |
+
+(All correctly filtered to Rahaman, but distances are moderate-to-weak and the top chunks
+don't actually mention extra credit — Rahaman's one explicit extra-credit review didn't
+rank in the top 3 here. This previews the recall issue discussed in the Failure Case.)
 
 ---
 
@@ -133,6 +220,76 @@ the refusal, the source list is emptied so we never attribute a non-answer.
 
 ---
 
+## Example Responses
+
+Each response below is shown exactly as the system returns it: the generated **Answer**
+plus the **Retrieved from** source list (the system's programmatic attribution).
+
+**Example 1 — "Which professors give extra credit?"** (no professor filter)
+> **Answer:** According to the reviews, Professor Tanvir Ahmed provides extra credit. This
+> is mentioned in reviews [1], [2], [6], and [9], which all state that he offers numerous
+> extra credit opportunities to help his students succeed. There is no mention of extra
+> credit in the reviews for Professors Arup Guha, Md Mahfuzur Rahaman, or Awrad Ali.
+>
+> **Retrieved from:**
+> • RMP — Tanvir Ahmed · • RMP — Arup Guha · • RMP — Md Mahfuzur Rahaman · • RMP — Awrad Ali
+
+**Example 2 — "Is the grading fair or harsh?"** (professor = Awrad Ali)
+> **Answer:** The reviews disagree on whether the grading is considered fair or harsh. Some
+> students (reviews [3], [5], [8], [10]) consider it fair — [3] notes the lowest quiz grade
+> is dropped, [5] says homework and exams were hard but fair. Others (reviews [1], [2], [7],
+> [9]) consider it harsh — [1] and [9] mention zeros for suspected AI use, [2] says asking a
+> peer for help resulted in a 50% grade, [7] found exams poorly organized.
+>
+> **Retrieved from:**
+> • RMP — Awrad Ali
+
+**Example 3 — out-of-scope query (refusal):** "What do students say about the parking garage by the engineering building?"
+> **Answer:** I don't have enough information on that.
+>
+> **Retrieved from:** (no sources — question not covered by the reviews)
+
+The system declines rather than answering from general knowledge, even though a large
+language model "knows" plenty about parking generally — because the prompt forbids outside
+knowledge and the retrieved reviews don't cover the topic.
+
+---
+
+## Query Interface
+
+A **Gradio** web UI (`app.py`), launched with `python3 app.py` at http://localhost:7860.
+
+**Input fields:**
+- **Professor** (dropdown) — "All professors" (default) or one of the five professors.
+  Selecting one applies the metadata filter so the answer draws only from that professor.
+- **CS1 (COP 3502) reviews only** (checkbox) — restricts retrieval to reviews flagged
+  `is_cs1`, excluding the professor's other courses.
+- **Your question** (text box) — the natural-language question; Enter or the **Ask** button submits.
+
+**Output fields:**
+- **Answer** (text box) — the grounded, generated answer.
+- **Retrieved from** (text box) — the source documents the answer drew from (attribution).
+
+**Sample interaction transcript:**
+```
+Professor:  Awrad Ali
+CS1 only:   ☐ (unchecked)
+Question:   Is the grading fair or harsh?
+
+[Ask]
+
+Answer:
+  The reviews disagree on whether the grading is considered fair or harsh. Some
+  students consider it fair (the lowest quiz grade is dropped; exams hard but fair),
+  while others consider it harsh (zeros for suspected AI use; a 50% grade for getting
+  peer help; poorly organized exams).
+
+Retrieved from:
+  • RMP — Awrad Ali
+```
+
+---
+
 ## Evaluation Report
 
 Run reproducibly with `python3 -m eval.run_eval`. Filters reflect what a user would
@@ -141,8 +298,8 @@ questions use no professor filter; "best for CS1" and "general difficulty" use C
 
 | # | Question | Expected answer | System response (summarized) | Retrieval quality | Response accuracy |
 |---|----------|-----------------|------------------------------|-------------------|-------------------|
-| 1 | Which professors provide extra credit? | Ahmed, Ali, Rahaman | Names **Ahmed** (cites several reviews); states no extra-credit mention for Guha, Rahaman, or Ali | Partially relevant | **Partially accurate** |
-| 2 | Between Ali and Ahmed, whose class seems harder? | Ali | Concludes **Ahmed** is harder; says Ali's reviews don't describe the class as hard | Partially relevant (imbalanced) | **Inaccurate** |
+| 1 | Which professors provide extra credit? | Ahmed, Ali, Rahaman | Names **Ahmed** only (cites several reviews); states no extra-credit mention for Guha, Rahaman, or Ali | Partially relevant | **Partially accurate** |
+| 2 | Between Ali and Ahmed, whose class seems harder? | Ahmed | Concludes **Ahmed** is harder, citing his difficult exams/heavy assignments vs. milder Ali reviews | Partially relevant (imbalanced) | **Accurate** |
 | 3 | Overall, who is the best professor for CS1? | Guha / Ahmed | "No clear consensus"; highlights **Ahmed**, Rahaman, Ali; Guha not surfaced | Relevant | **Partially accurate** |
 | 4 | Is Awrad Ali's grading fair or harsh? | Fair | Balanced: several reviews say fair (drops lowest quiz, fair-but-hard exams), several say harsh (AI-use zeros, tight timing). Sources: only Awrad Ali | Relevant | **Accurate** |
 | 5 | In general, how difficult are the CS1 professors? | Fair / moderate | Varies: Ahmed/Guha harder, Kullu/Rahaman easier; CS1 rigorous regardless of professor | Relevant | **Accurate** |
@@ -150,42 +307,48 @@ questions use no professor filter; "best for CS1" and "general difficulty" use C
 **Retrieval quality:** Relevant / Partially relevant / Off-target
 **Response accuracy:** Accurate / Partially accurate / Inaccurate
 
-Notes: Q4 and Q5 are strong — grounded, balanced, correctly attributed, and the
-professor filter on Q4 returned only Awrad Ali (no leakage). Q1 and Q3 are *grounded but
-incomplete*, and Q2 is a genuine miss — both for the same underlying reason, analyzed below.
+Notes: Q2, Q4, and Q5 are strong — grounded, correctly attributed, and the professor
+filter on Q4 returned only Awrad Ali (no leakage). Q2 reached the right conclusion
+(Ahmed), though its retrieval was imbalanced (see Failure Case). Q1 and Q3 are *grounded
+but incomplete*; **Q1 is the documented failure analyzed below**.
 
 ---
 
 ## Failure Case Analysis
 
-**Question that failed:** Q2 — "Between Awrad Ali and Tanvir Ahmed, whose class seems harder?"
-(Expected: **Ali**.)
+**Question that failed:** Q1 — "Which professors provide extra credit?"
+(Expected: **Ahmed, Ali, Rahaman**.)
 
-**What the system returned:** It concluded **Tanvir Ahmed's** class is harder, citing
-several Ahmed reviews about difficult exams and heavy assignments, and stated that Ali's
-reviews "do not mention the class being particularly hard." This contradicts the expected
-answer and, more importantly, was reached from a one-sided set of evidence.
+**What the system returned:** It named **only Tanvir Ahmed**, citing several of his reviews,
+and explicitly stated there was "no mention of extra credit in the reviews for Professors
+Arup Guha, Md Mahfuzur Rahaman, or Awrad Ali." This is verifiably wrong for at least
+Rahaman: his corpus contains an explicit review reading *"Gave us so many opportunities for
+extra credit and gave really great curves…"* — that review exists in the data but was never
+shown to the model.
 
-**Root cause (tied to a specific pipeline stage):** This is a **retrieval** failure caused
-by the interaction of two design facts. (1) The metadata filter is **single-professor**
-(the UI dropdown is single-select and the Chroma `where` clause filters one professor), so
-a *two-professor comparison* has to run with **no professor filter at all**. (2) The corpus
-is heavily **imbalanced** — Ahmed has 233 CS1 reviews while Ali has only 18. With an
-unfiltered top-k=10 ranked purely by cosine similarity to "whose class is harder," Ahmed's
-large review pool dominates the results: the retrieved set was mostly Ahmed reviews plus a
-single Ali review. The model faithfully (correctly, per its grounding) summarized the
-evidence it was given — but that evidence was lopsided, so it concluded Ahmed because it
-*saw* mostly Ahmed difficulty reviews and almost no Ali ones. Retrieval never gave the LLM
-a fair sample of Ali's side.
+**Root cause (tied to a specific pipeline stage):** This is a **retrieval recall** failure
+driven by **corpus imbalance**, not a generation failure. "Which professors give extra
+credit?" is an *aggregate* question whose correct answer is spread across several
+professors, but retrieval returns the top-k=10 chunks closest to the query *globally*,
+ranked only by cosine similarity. Ahmed has **233 CS1 reviews** (many mentioning extra
+credit) versus Rahaman's **9** and Ali's **18**. Ahmed's many extra-credit reviews are all
+strong matches, so they **crowd out** the top-10 and the rare extra-credit mentions from the
+sparse professors never rank high enough to be retrieved. The LLM then answered faithfully
+from what it was given — almost entirely Ahmed — so it correctly (per its grounding rules)
+reported that the others don't offer extra credit. The model did its job; retrieval simply
+never surfaced the evidence. This is the same imbalance that made Q2's retrieval one-sided —
+there it happened to favor the correct answer, here it produced a wrong one. (The Retrieval
+Test Results "Query C" above shows the symptom directly: even when filtered to Rahaman, his
+explicit extra-credit review didn't rank in the top results.)
 
-**What I would change to fix it:** Support **multi-professor retrieval** for comparison
-questions — use Chroma's `{"professor": {"$in": [...]}}` filter and retrieve a **balanced
-top-k per professor** (e.g. 5 from Ali and 5 from Ahmed) rather than 10 globally. That
-guarantees both sides are equally represented regardless of how many total reviews each
-professor has. A lighter-weight alternative is to detect a comparison question and run two
-separate single-professor retrievals, then merge. Either fix addresses the imbalance at the
-retrieval stage, which is where the failure actually originates (the embedding, chunking,
-and generation stages all behaved correctly).
+**What I would change to fix it:** For aggregate "which professors…" questions, retrieve a
+**balanced top-k per professor** — loop over the five professors and pull each one's top-n
+chunks (`where professor == X`), then merge — instead of one global top-10. That guarantees
+every professor's most relevant reviews are represented regardless of how many total reviews
+they have. A lighter alternative is **diversity-aware retrieval** (e.g. MMR) so the top-k
+isn't filled with near-duplicate Ahmed reviews, or simply raising k for aggregate queries.
+All of these fix the problem at the retrieval stage, where it originates — the embedding,
+chunking, and generation stages all behaved correctly.
 
 ---
 
