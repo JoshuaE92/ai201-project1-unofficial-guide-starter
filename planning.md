@@ -9,7 +9,13 @@
 
 ## Domain
 
-<!-- I chose the best proffesors for CS1 at the University of Central Florida. This information is usually hard to find through offical means because they dont provide honest student reviews from classes-->
+Student reviews of the best professors for **CS1 (COP 3502)** at the University of
+Central Florida. This knowledge is hard to find through official channels: UCF's course
+catalog only gives a generic course description, not how a specific professor actually
+teaches, how hard their exams are, whether they curve, or whether they give extra credit.
+That honest, experience-based information lives scattered across RateMyProfessors and the
+r/ucf subreddit — valuable for choosing a professor in a weed-out course, but unstructured
+and spread across hundreds of individual opinions.
 
 ---
 
